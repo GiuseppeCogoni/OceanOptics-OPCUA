@@ -5,6 +5,8 @@
 """
 
 import argparse, logging, logging.config, yaml, coloredlogs, os
+import seabreeze.spectrometers as s
+
 from opcua import Server, ua
 from time import sleep
 
@@ -17,11 +19,7 @@ class OPCServer(object):
     """
 
     def __init__(self):
-        """Create logger, socket client and OPC UA server.
-        
-        Args:
-            configuration_file (str): Filename containing the parameters \
-            for the OPC UA server and intrument configuration.
+        """Create logger, instrument config and OPC UA server.
         """
 
         self._setup_logger()
@@ -29,11 +27,12 @@ class OPCServer(object):
         self._get_instrument_parameters()
         self._create_opc_server()
         self._setOPCnodes()
-        
-        
+        self._instrument_config()
+
+
     def _setup_logger(self, config_file="./logger_conf.yml"):
         """Start the logger using the provided configuration file.
-        
+
         Args:
             config_file (YAML file): logger configuration file.
         """
@@ -66,8 +65,8 @@ class OPCServer(object):
         """
         with open(config_file, "rt") as file_obj:
             self._parameters = yaml.safe_load(file_obj.read())
-  
-            
+
+
     def _get_instrument_parameters(self, config_file="./instrument_config.yml"):
         """Read and parse the yaml file containing the
         instrument parameters. Sets the
@@ -85,7 +84,7 @@ class OPCServer(object):
         """
         endpoint = self._parameters['opc']['endpoint']
         name = self._parameters['opc']['name']
-        
+
         self._server = Server()
         self._server.set_endpoint(endpoint)
         self._server.set_server_name(name)
@@ -107,7 +106,7 @@ class OPCServer(object):
         nodes_dict = self._parameters['opc']['tags']
         root_node = self._parameters['opc']['root_node']
         self._logger.info('This is the client object {}'.format(nodes_dict))
-        
+
         self._obj = self._server.get_objects_node()
 
 
@@ -127,27 +126,41 @@ class OPCServer(object):
         print(self._OPCnodes['SpectraCounter'])
 
         self._logger.info('OPC tags created: {}'.format(self._OPCnodes))   
- 
-    
+
+
+    def _instrument_config(self):
+        devs = s.list_devices()
+        if len(devs)>0:
+            self._logger.info('Instrument connected: {}'.format(devs[0]))
+            self._serial = devs[0].get_serial_number()
+            self._model = devs[0].model
+            self._spec = s.Spectrometer.from_serial_number(self._serial)
+        else:
+	    self._logger.info('No instrument connected!')
+
+
     def run(self):
         """Create a very simple OPC UA server.
         """
-        
+
         self._server.start()
         self._logger.info("OPC UA server started at: {}".format(
             self._parameters['opc']['endpoint']))
         count = 0
         self._OPCnodes['SpectraTrigger'].set_value(0)
+        self._OPCnodes['Wavelengths'].set_value(list(self._spec.wavelenghts()))
+        self._OPCnodes['DeviceModel'].set_value(self._model)
+        self._OPCnodes['DeviceSerial'].set_value(self._serial)
         try:
             while True:
                 if self._OPCnodes['SpectraTrigger'].get_value() > 0:
                     count+=1
                     self._OPCnodes['Intensities'].set_value(
-                        [count*1.1, count*1.1]
+                        list(self._spec.intensities())
                         )
                     self._OPCnodes['SpectraCounter'].set_value(count)
-                    print(self._OPCnodes['Intensities'].get_value())
-                    print(self._OPCnodes['SpectraCounter'].get_value())
+                    #print(self._OPCnodes['Intensities'].get_value())
+                    #print(self._OPCnodes['SpectraCounter'].get_value())
                     sleep(self._instr_param['ocean_optics']['sampling_freq'])
 
         finally:
@@ -156,7 +169,7 @@ class OPCServer(object):
 
 #Main routine
 if __name__ == "__main__":
-    
+
     opcua = OPCServer()
     opcua.run()
-    
+
