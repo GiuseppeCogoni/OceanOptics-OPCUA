@@ -1,0 +1,13 @@
+opc:
+    root_node: 'ns=2;s=0:OceanOptics/Data/'
+    endpoint: 'opc.tcp://0.0.0.0:4840/freeopcua/OceanOpticsServer/'
+    uri: 'http://Ocean.Optics.OPCUAserver'
+    name: 'OPCUA Ocean Optics Server'
+    tags:
+    # Tag names must be follow by the variant type, e.g: UInt32, Float, String, etc.
+        - Wavelengths: Float
+        - Intensities: Float
+        - SpectraCounter: UInt32
+        - SpectraTrigger: Float
+        - DeviceModel: String
+        - DeviceSerial: String

@@ -1,0 +1,35 @@
+version: 1
+disable_existing_loggers: true
+
+formatters:
+    standard:
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    colored:
+        format: "%(levelname)s <PID %(process)d:%(processName)s> %(name)s.%(funcName)s(): %(message)s"
+        (): "coloredlogs.ColoredFormatter"
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: INFO
+        formatter: colored
+        stream: ext://sys.stdout
+
+    info_file_handler:
+        class: logging.RotatingFileHandler
+        level: INFO
+        formatter: standard
+        filename: info.log
+        maxBytes: 10485760 # 10MB
+        backupCount: 10
+        encoding: utf8
+
+loggers:
+    OPCUA_server_logger:
+        level: INFO
+        handlers: [console, info_file_handler]
+        propogate: no
+
+root:
+    level: DEBUG
+    handlers: [console]

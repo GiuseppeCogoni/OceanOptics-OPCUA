@@ -1,0 +1,162 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+
+"""
+
+import argparse, logging, logging.config, yaml, coloredlogs, os
+from opcua import Server, ua
+from time import sleep
+
+__author__ = "Giuseppe Cogoni"
+__license__ = "MIT"
+
+
+class OPCServer(object):
+    """OPC Server class for the Ocean Optics instrument
+    """
+
+    def __init__(self):
+        """Create logger, socket client and OPC UA server.
+        
+        Args:
+            configuration_file (str): Filename containing the parameters \
+            for the OPC UA server and intrument configuration.
+        """
+
+        self._setup_logger()
+        self._get_server_parameters()
+        self._get_instrument_parameters()
+        self._create_opc_server()
+        self._setOPCnodes()
+        
+        
+    def _setup_logger(self, config_file="./logger_conf.yml"):
+        """Start the logger using the provided configuration file.
+        
+        Args:
+            config_file (YAML file): logger configuration file.
+        """
+        default_level = logging.INFO
+        if os.path.exists(config_file):
+            with open(config_file, "rt") as f:
+                try:
+                    config = yaml.safe_load(f.read())
+                    logging.config.dictConfig(config)
+                    coloredlogs.install()
+                except Exception as e:
+                    print(e)
+                    print('Error in Logging Configuration. Using default configs')
+                    logging.basicConfig(level=default_level)
+                    coloredlogs.install(level=default_level)
+        else:
+            logging.basicConfig(level=default_level)
+            print('Config file not found, using Default logging')
+        self._logger = logging.getLogger(__name__)
+        self._logger.info("Logger {} started...".format(__name__))
+
+
+    def _get_server_parameters(self, config_file="./config.yml"):
+        """Read and parse the yaml file containing the
+        parameters to start the server. Sets the
+        object attribute self._parameters.
+
+        Args:
+            configuration_file (str): Filename containing parameters formatted as yaml.
+        """
+        with open(config_file, "rt") as file_obj:
+            self._parameters = yaml.safe_load(file_obj.read())
+  
+            
+    def _get_instrument_parameters(self, config_file="./instrument_config.yml"):
+        """Read and parse the yaml file containing the
+        instrument parameters. Sets the
+        object attribute self._instr_param.
+
+        Args:
+            configuration_file (str): Filename containing parameters formatted as yaml.
+        """
+        with open(config_file, "rt") as file_obj:
+            self._instr_param = yaml.safe_load(file_obj.read())
+
+
+    def _create_opc_server(self):
+        """Create an OPC UA server
+        """
+        endpoint = self._parameters['opc']['endpoint']
+        name = self._parameters['opc']['name']
+        
+        self._server = Server()
+        self._server.set_endpoint(endpoint)
+        self._server.set_server_name(name)
+         # set all possible endpoint policies for clients to connect through
+        self._server.set_security_policy([
+            ua.SecurityPolicyType.NoSecurity,
+            ua.SecurityPolicyType.Basic256Sha256_SignAndEncrypt,
+            ua.SecurityPolicyType.Basic256Sha256_Sign])
+
+        uri = self._parameters['opc']['uri']
+        self._server.register_namespace(uri)
+
+
+    def _setOPCnodes(self):
+        """Creates a dictionary with the OPC UA nodes and variat types from the
+        tag parameters entered in the configuration.yml file.
+
+        """
+        nodes_dict = self._parameters['opc']['tags']
+        root_node = self._parameters['opc']['root_node']
+        self._logger.info('This is the client object {}'.format(nodes_dict))
+        
+        self._obj = self._server.get_objects_node()
+
+
+        # OPC UA Mapping --------------------------------------------------------------
+        self._OPCnodes = {}
+        for tags in nodes_dict:
+            for name, tag_type in tags.items():
+                node = self._obj.add_variable(
+                    root_node+name, 
+                    name,
+                    '',
+                    getattr(ua.VariantType, tag_type)
+                    )
+                node.set_read_only()
+                self._OPCnodes[name] = self._server.get_node(root_node+name)
+        print(self._OPCnodes)
+        print(self._OPCnodes['SpectraCounter'])
+
+        self._logger.info('OPC tags created: {}'.format(self._OPCnodes))   
+ 
+    
+    def run(self):
+        """Create a very simple OPC UA server.
+        """
+        
+        self._server.start()
+        self._logger.info("OPC UA server started at: {}".format(
+            self._parameters['opc']['endpoint']))
+        count = 0
+        self._OPCnodes['SpectraTrigger'].set_value(0)
+        try:
+            while True:
+                if self._OPCnodes['SpectraTrigger'].get_value() > 0:
+                    count+=1
+                    self._OPCnodes['Intensities'].set_value(
+                        [count*1.1, count*1.1]
+                        )
+                    self._OPCnodes['SpectraCounter'].set_value(count)
+                    print(self._OPCnodes['Intensities'].get_value())
+                    print(self._OPCnodes['SpectraCounter'].get_value())
+                    sleep(self._instr_param['ocean_optics']['sampling_freq'])
+
+        finally:
+            self._server.stop()
+
+
+#Main routine
+if __name__ == "__main__":
+    
+    opcua = OPCServer()
+    opcua.run()
+    
