@@ -132,23 +132,25 @@ class OPCServer(object):
         devs = s.list_devices()
         if len(devs)>0:
             self._logger.info('Instrument connected: {}'.format(devs[0]))
-            self._serial = devs[0].get_serial_number()
+            self._serial = devs[0].serial_number
             self._model = devs[0].model
             self._spec = s.Spectrometer.from_serial_number(self._serial)
+            #print(self._model)
         else:
-	    self._logger.info('No instrument connected!')
+            self._logger.info('No instrument connected!')
 
 
     def run(self):
         """Create a very simple OPC UA server.
         """
-
+        #print(self._model)
         self._server.start()
         self._logger.info("OPC UA server started at: {}".format(
             self._parameters['opc']['endpoint']))
         count = 0
-        self._OPCnodes['SpectraTrigger'].set_value(0)
-        self._OPCnodes['Wavelengths'].set_value(list(self._spec.wavelenghts()))
+        self._OPCnodes['SpectraTrigger'].set_value(1)
+        wl = self._spec.wavelengths()
+        self._OPCnodes['Wavelengths'].set_value(list(wl))
         self._OPCnodes['DeviceModel'].set_value(self._model)
         self._OPCnodes['DeviceSerial'].set_value(self._serial)
         try:

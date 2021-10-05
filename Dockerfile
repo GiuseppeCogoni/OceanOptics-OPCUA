@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install git-all build-essential libusb-dev -y
 RUN addgroup --system --gid 1001 python
 RUN adduser --system --home /home/python --shell /bin/sh --uid 1001 --gid 1001 python
 RUN usermod -a -G dialout python
-RUN pip install PyYAML coloredlogs opcua cryptography seabreeze
+RUN pip install PyYAML coloredlogs opcua cryptography==3.3.2 seabreeze
 
 USER python
 RUN mkdir -p /home/python/OceanOptics-OPCUA
