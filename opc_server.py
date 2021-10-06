@@ -166,7 +166,7 @@ class OPCServer(object):
                     self._OPCnodes[name].set_value(False)
                 if tag_type in "String":
                     self._OPCnodes[name].set_value(str(""))
-
+ 
         self._logger.info('OPC tags created: {}'.format(self._OPCnodes))
 
 
@@ -179,8 +179,12 @@ class OPCServer(object):
             self._model = self._dev.model
             self._spec = s.Spectrometer.from_serial_number(self._serial)
             ms = self._instr_param['ocean_optics']['integration_time']
-            self._spec.integration_time_micros(ms)
-            wl = self._spec.wavelengths()
+            try:
+                self._spec.integration_time_micros(ms)
+            except:
+                self._logger.info('Integration time not editable for this instrument!')
+                pass    
+            wl = self._spec.wavelengths()  
             self._OPCnodes['Wavelengths'].set_value(list(wl))
             self._OPCnodes['Intensities'].set_value([0.]*len(wl))
             self._status = True
@@ -216,11 +220,15 @@ class OPCServer(object):
                     self._status):
                     
                     count+=1
-                    
-                    self._OPCnodes['Intensities'].set_value(
-                        list(self._spec.intensities())
-                        )
-                    self._OPCnodes['SpectraCounter'].set_value(count)
+                    try:
+                        self._OPCnodes['Intensities'].set_value(
+                            list(self._spec.intensities())
+                            )
+                        self._OPCnodes['SpectraCounter'].set_value(count)
+                    except:
+                        self._status = False
+                        self._OPCnodes['Status'].set_value(self._status)
+                        self._logger.info('Instrument disconnected!')
                     sleep(self._instr_param['ocean_optics']['sampling_freq'])
 
         finally:
