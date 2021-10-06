@@ -153,6 +153,14 @@ class OPCServer(object):
                     getattr(ua.VariantType, tag_type)
                     )
                 node.set_read_only()
+                if tag_type in "Float":
+                    node.set_value(0)
+                if tag_type in "UInt32":
+                    node.set_value(0)
+                if tag_type in "Boolean":
+                    node.set_value(False)
+                if tag_type in "String":
+                    node.set_value("")
                 self._OPCnodes[name] = self._server.get_node(root_node+name)
         print(self._OPCnodes)
         print(self._OPCnodes['SpectraCounter'])
@@ -185,7 +193,6 @@ class OPCServer(object):
             self._parameters['opc']['endpoint']))
         count = 0
         param_capt = False
-        self._OPCnodes['SpectraTrigger'].set_value(0)
         
         wd = WatchDog(self._OPCnodes['Heartbit_s'],
                       self._OPCnodes['Heartbit_c'],
