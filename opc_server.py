@@ -4,14 +4,46 @@
 
 """
 
-import argparse, logging, logging.config, yaml, coloredlogs, os
+import logging, logging.config, yaml, coloredlogs, os
 import seabreeze.spectrometers as s
 
 from opcua import Server, ua
 from time import sleep
+from threading import Thread
 
 __author__ = "Giuseppe Cogoni"
 __license__ = "MIT"
+
+
+class WatchDog(Thread):
+    def __init__(self, ser, cli, comms, timeout):
+        Thread.__init__(self)
+        self._stopev = False
+        self.ser = ser
+        self.cli = cli
+        self.comms = comms
+        self.to = timeout
+
+    def stop(self):
+        self._stopev = True
+
+    def run(self):
+        count = 0
+        while not self._stopev:
+            prev_in = self.cli.get_value()
+            self.ser.set_value(prev_in^1)
+            curr_in = self.cli.get_value()
+            if curr_in == prev_in:
+                count+=1
+                sleep(1)
+                if count >= self.to:
+                    self.comms.set_value(False)
+                else:
+                    self.comms.set_value(True)                    
+            else:
+                count = 0
+                self.comms.set_value(True)
+                    
 
 
 class OPCServer(object):
@@ -131,13 +163,17 @@ class OPCServer(object):
     def _instrument_config(self):
         devs = s.list_devices()
         if len(devs)>0:
-            self._logger.info('Instrument connected: {}'.format(devs[0]))
-            self._serial = devs[0].serial_number
-            self._model = devs[0].model
+            self._dev = devs[0]
+            self._logger.info('Instrument connected: {}'.format(self._dev))
+            self._serial = self._dev.serial_number
+            self._model = self._dev.model
             self._spec = s.Spectrometer.from_serial_number(self._serial)
-            #print(self._model)
+            ms = self._instr_param['ocean_optics']['integration_time']
+            self._spec.integration_time_micros(ms)
+            self._status = True
         else:
             self._logger.info('No instrument connected!')
+            self._status = False
 
 
     def run(self):
@@ -148,24 +184,41 @@ class OPCServer(object):
         self._logger.info("OPC UA server started at: {}".format(
             self._parameters['opc']['endpoint']))
         count = 0
-        self._OPCnodes['SpectraTrigger'].set_value(1)
-        wl = self._spec.wavelengths()
-        self._OPCnodes['Wavelengths'].set_value(list(wl))
-        self._OPCnodes['DeviceModel'].set_value(self._model)
-        self._OPCnodes['DeviceSerial'].set_value(self._serial)
+        param_capt = False
+        
+        wd = WatchDog(self._OPCnodes['Heartbit_s'],
+                      self._OPCnodes['Heartbit_c'],
+                      self._OPCnodes['Comms'],
+                      self._parameters['opc']['comms_timeout'])  # WD function
+        wd.start()
+        
         try:
             while True:
-                if self._OPCnodes['SpectraTrigger'].get_value() > 0:
+                
+                if not self._status:
+                    self._instrument_config()
+                
+                if (self._OPCnodes['SpectraTrigger'].get_value() > 0 
+                    and 
+                    self._status):
+                    
                     count+=1
+                    
+                    if not param_capt:
+                        wl = self._spec.wavelengths()
+                        self._OPCnodes['Wavelengths'].set_value(list(wl))
+                        self._OPCnodes['DeviceModel'].set_value(self._model)
+                        self._OPCnodes['DeviceSerial'].set_value(self._serial)
+                        param_capt = True                        
+                    
                     self._OPCnodes['Intensities'].set_value(
                         list(self._spec.intensities())
                         )
                     self._OPCnodes['SpectraCounter'].set_value(count)
-                    #print(self._OPCnodes['Intensities'].get_value())
-                    #print(self._OPCnodes['SpectraCounter'].get_value())
                     sleep(self._instr_param['ocean_optics']['sampling_freq'])
 
         finally:
+            wd.stop()
             self._server.stop()
 
 
