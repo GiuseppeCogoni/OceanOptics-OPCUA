@@ -93,7 +93,7 @@ class OPCServer(object):
         object attribute self._parameters.
 
         Args:
-            configuration_file (str): Filename containing parameters formatted as yaml.
+            config_file (YAML file): Filename containing parameters formatted as yaml.
         """
         with open(config_file, "rt") as file_obj:
             self._parameters = yaml.safe_load(file_obj.read())
@@ -105,7 +105,7 @@ class OPCServer(object):
         object attribute self._instr_param.
 
         Args:
-            configuration_file (str): Filename containing parameters formatted as yaml.
+            config_file (YAML file): Filename containing parameters formatted as yaml.
         """
         with open(config_file, "rt") as file_obj:
             self._instr_param = yaml.safe_load(file_obj.read())
@@ -137,7 +137,6 @@ class OPCServer(object):
         """
         nodes_dict = self._parameters['opc']['tags']
         root_node = self._parameters['opc']['root_node']
-        self._logger.info('This is the client object {}'.format(nodes_dict))
 
         self._obj = self._server.get_objects_node()
 
@@ -187,7 +186,6 @@ class OPCServer(object):
     def run(self):
         """Create a very simple OPC UA server.
         """
-        #print(self._model)
         self._server.start()
         self._logger.info("OPC UA server started at: {}".format(
             self._parameters['opc']['endpoint']))
