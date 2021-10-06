@@ -185,6 +185,7 @@ class OPCServer(object):
             self._parameters['opc']['endpoint']))
         count = 0
         param_capt = False
+        self._OPCnodes['SpectraTrigger'].set_value(0)
         
         wd = WatchDog(self._OPCnodes['Heartbit_s'],
                       self._OPCnodes['Heartbit_c'],
