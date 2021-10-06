@@ -16,6 +16,8 @@ __license__ = "MIT"
 
 
 class WatchDog(Thread):
+    
+    
     def __init__(self, ser, cli, comms, timeout):
         Thread.__init__(self)
         self._stopev = False
@@ -24,26 +26,28 @@ class WatchDog(Thread):
         self.comms = comms
         self.to = timeout
 
+
     def stop(self):
         self._stopev = True
 
+
     def run(self):
-        count = 0
+        cnt = 0
         while not self._stopev:
             prev_in = self.cli.get_value()
-            self.ser.set_value(prev_in^1)
+            self.ser.set_value(float(int(prev_in)^1))
+            sleep(1)
             curr_in = self.cli.get_value()
             if curr_in == prev_in:
-                count+=1
-                sleep(1)
-                if count >= self.to:
+                cnt+=1
+                if cnt >= self.to:
                     self.comms.set_value(False)
                 else:
-                    self.comms.set_value(True)                    
+                    self.comms.set_value(True)
+                curr_in = self.cli.get_value()
             else:
-                count = 0
+                cnt = 0
                 self.comms.set_value(True)
-                    
 
 
 class OPCServer(object):
@@ -93,7 +97,7 @@ class OPCServer(object):
         object attribute self._parameters.
 
         Args:
-            config_file (YAML file): Filename containing parameters formatted as yaml.
+            configuration_file (str): Filename containing parameters formatted as yaml.
         """
         with open(config_file, "rt") as file_obj:
             self._parameters = yaml.safe_load(file_obj.read())
@@ -105,7 +109,7 @@ class OPCServer(object):
         object attribute self._instr_param.
 
         Args:
-            config_file (YAML file): Filename containing parameters formatted as yaml.
+            configuration_file (str): Filename containing parameters formatted as yaml.
         """
         with open(config_file, "rt") as file_obj:
             self._instr_param = yaml.safe_load(file_obj.read())
@@ -137,6 +141,7 @@ class OPCServer(object):
         """
         nodes_dict = self._parameters['opc']['tags']
         root_node = self._parameters['opc']['root_node']
+        self._logger.info('This is the client object {}'.format(nodes_dict))
 
         self._obj = self._server.get_objects_node()
 
@@ -146,25 +151,23 @@ class OPCServer(object):
         for tags in nodes_dict:
             for name, tag_type in tags.items():
                 node = self._obj.add_variable(
-                    root_node+name, 
+                    root_node+name,
                     name,
                     '',
                     getattr(ua.VariantType, tag_type)
                     )
-                node.set_read_only()
-                if tag_type in "Float":
-                    node.set_value(0)
-                if tag_type in "UInt32":
-                    node.set_value(0)
-                if tag_type in "Boolean":
-                    node.set_value(False)
-                if tag_type in "String":
-                    node.set_value("")
+                node.set_writable()
                 self._OPCnodes[name] = self._server.get_node(root_node+name)
-        print(self._OPCnodes)
-        print(self._OPCnodes['SpectraCounter'])
+                if tag_type in "Float":
+                    self._OPCnodes[name].set_value(float(0.0))
+                if tag_type in "UInt32":
+                    self._OPCnodes[name].set_value(int(0))
+                if tag_type in "Boolean":
+                    self._OPCnodes[name].set_value(False)
+                if tag_type in "String":
+                    self._OPCnodes[name].set_value(str(""))
 
-        self._logger.info('OPC tags created: {}'.format(self._OPCnodes))   
+        self._logger.info('OPC tags created: {}'.format(self._OPCnodes))
 
 
     def _instrument_config(self):
@@ -177,10 +180,16 @@ class OPCServer(object):
             self._spec = s.Spectrometer.from_serial_number(self._serial)
             ms = self._instr_param['ocean_optics']['integration_time']
             self._spec.integration_time_micros(ms)
+            wl = self._spec.wavelengths()
+            self._OPCnodes['Wavelengths'].set_value(list(wl))
+            self._OPCnodes['Intensities'].set_value([0.]*len(wl))
             self._status = True
+            self._OPCnodes['DeviceModel'].set_value(self._model)
+            self._OPCnodes['DeviceSerial'].set_value(self._serial)
         else:
             self._logger.info('No instrument connected!')
             self._status = False
+        self._OPCnodes['Status'].set_value(self._status)
 
 
     def run(self):
@@ -190,17 +199,15 @@ class OPCServer(object):
         self._logger.info("OPC UA server started at: {}".format(
             self._parameters['opc']['endpoint']))
         count = 0
-        param_capt = False
         
         wd = WatchDog(self._OPCnodes['Heartbit_s'],
                       self._OPCnodes['Heartbit_c'],
                       self._OPCnodes['Comms'],
                       self._parameters['opc']['comms_timeout'])  # WD function
         wd.start()
-        
+
         try:
             while True:
-                
                 if not self._status:
                     self._instrument_config()
                 
@@ -209,13 +216,6 @@ class OPCServer(object):
                     self._status):
                     
                     count+=1
-                    
-                    if not param_capt:
-                        wl = self._spec.wavelengths()
-                        self._OPCnodes['Wavelengths'].set_value(list(wl))
-                        self._OPCnodes['DeviceModel'].set_value(self._model)
-                        self._OPCnodes['DeviceSerial'].set_value(self._serial)
-                        param_capt = True                        
                     
                     self._OPCnodes['Intensities'].set_value(
                         list(self._spec.intensities())
@@ -233,4 +233,3 @@ if __name__ == "__main__":
 
     opcua = OPCServer()
     opcua.run()
-
