@@ -3,6 +3,7 @@ opc:
     endpoint: 'opc.tcp://0.0.0.0:4840/freeopcua/OceanOpticsServer/'
     uri: 'http://Ocean.Optics.OPCUAserver'
     name: 'OPCUA Ocean Optics Server'
+    comms_timeout: 10 # seconds
     tags:
     # Tag names must be follow by the variant type, e.g: UInt32, Float, String, etc.
         - Wavelengths: Float
@@ -11,3 +12,7 @@ opc:
         - SpectraTrigger: Float
         - DeviceModel: String
         - DeviceSerial: String
+        - Status: Boolean
+        - Comms: Boolean
+        - Heartbit_s: Float
+        - Heartbit_c: Float
