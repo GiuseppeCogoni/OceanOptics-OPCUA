@@ -8,10 +8,12 @@ RUN pip install PyYAML coloredlogs opcua cryptography==3.3.2 seabreeze
 
 USER python
 RUN mkdir -p /home/python/OceanOptics-OPCUA
-COPY --chown=python:python opc_server.py\
-     logger_conf.yml\
-     config.yml\
-     instrument_config.yml\
+RUN mkdir -p /home/python/OceanOptics-OPCUA/configs
+RUN mkdir -p /home/python/OceanOptics-OPCUA/logs
+COPY --chown=python:python ./opc_server.py\
+     ./configs/logger_conf.yml\
+     ./configs/config.yml\
+     ./configs/instrument_config.yml\
      /home/python/OceanOptics-OPCUA/
 CMD ["seabreeze_os_setup"]
 WORKDIR /home/python/OceanOptics-OPCUA
