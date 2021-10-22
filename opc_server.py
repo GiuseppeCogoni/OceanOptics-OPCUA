@@ -66,7 +66,7 @@ class OPCServer(object):
         self._instrument_config()
 
 
-    def _setup_logger(self, config_file="./logger_conf.yml"):
+    def _setup_logger(self, config_file="./configs/logger_conf.yml"):
         """Start the logger using the provided configuration file.
 
         Args:
@@ -91,7 +91,7 @@ class OPCServer(object):
         self._logger.info("Logger {} started...".format(__name__))
 
 
-    def _get_server_parameters(self, config_file="./config.yml"):
+    def _get_server_parameters(self, config_file="./configs/config.yml"):
         """Read and parse the yaml file containing the
         parameters to start the server. Sets the
         object attribute self._parameters.
@@ -103,7 +103,7 @@ class OPCServer(object):
             self._parameters = yaml.safe_load(file_obj.read())
 
 
-    def _get_instrument_parameters(self, config_file="./instrument_config.yml"):
+    def _get_instrument_parameters(self, config_file="./configs/instrument_config.yml"):
         """Read and parse the yaml file containing the
         instrument parameters. Sets the
         object attribute self._instr_param.
